@@ -8,10 +8,27 @@ const OPENROUTER_MODELS = [
     'google/gemma-4-31b-it:free'
 ];
 
+// Global CORS headers to allow Janitor AI to communicate with our Vercel function
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Title, HTTP-Referer',
+};
+
 interface JanitorMessage {
     content?: unknown;
     role?: string;
     [key: string]: unknown;
+}
+
+/**
+ * Handles the browser's automatic preflight safety check
+ */
+export async function OPTIONS() {
+    return new Response(null, {
+        status: 204,
+        headers: corsHeaders,
+    });
 }
 
 /**
@@ -30,7 +47,7 @@ function toLeetSpeak(text: string): string {
 }
 
 /**
- * Standardized OpenAI error format so Janitor AI can read it cleanly
+ * Standardized OpenAI error format with CORS headers attached
  */
 function createErrorResponse(message: string, status: number = 500) {
     return new Response(
@@ -44,7 +61,10 @@ function createErrorResponse(message: string, status: number = 500) {
         }),
         {
             status,
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+            }
         }
     );
 }
@@ -150,12 +170,13 @@ export async function POST(req: NextRequest) {
             return createErrorResponse(`OpenRouter Translation Error (${selectedModel}): ${errorText}`, openRouterResponse.status);
         }
 
-        // 8. STREAM FINAL ENGLISH RESPONSE BACK TO JANITOR AI
+        // 8. STREAM FINAL ENGLISH RESPONSE BACK TO JANITOR AI WITH CORS HEADERS ATTACHED
         return new Response(openRouterResponse.body, {
             headers: {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
+                ...corsHeaders,
             },
         });
 
